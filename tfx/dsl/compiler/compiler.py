@@ -25,10 +25,12 @@ from tfx.dsl.components.base import base_component
 from tfx.dsl.components.base import base_driver
 from tfx.dsl.components.base import base_node
 from tfx.orchestration import data_types
+from tfx.orchestration import data_types_utils
 from tfx.orchestration import pipeline
 from tfx.proto.orchestration import executable_spec_pb2
 from tfx.proto.orchestration import pipeline_pb2
 from tfx.utils import json_utils
+from ml_metadata.proto import metadata_store_pb2
 
 
 class _CompilerContext(object):
@@ -58,10 +60,22 @@ class Compiler(object):
       # Attach additional properties for artifacts produced by importer nodes.
       for property_name, property_value in tfx_node.exec_properties[
           importer_node.PROPERTIES_KEY].items():
+        property_value_type = data_types_utils.get_metadata_value_type(
+            property_value)
+        if property_value_type != artifact_type.properties[property_name]:
+          raise TypeError(
+              "Unexpected value type of property '{}' in output artifact '{}': "
+              "Expected {} but given {} (value:{!r})".format(
+                  property_name, key,
+                  metadata_store_pb2.PropertyType.Name(
+                      output_spec.artifact_spec.type.properties[property_name]),
+                  metadata_store_pb2.PropertyType.Name(property_value_type),
+                  property_value))
+
         value_field = output_spec.artifact_spec.additional_properties[
             property_name].field_value
         try:
-          compiler_utils.set_field_value_pb(value_field, property_value)
+          data_types_utils.set_metadata_value(value_field, property_value)
         except ValueError:
           raise ValueError(
               "Component {} got unsupported parameter {} with type {}.".format(
@@ -72,7 +86,7 @@ class Compiler(object):
         value_field = output_spec.artifact_spec.additional_custom_properties[
             property_name].field_value
         try:
-          compiler_utils.set_field_value_pb(value_field, property_value)
+          data_types_utils.set_metadata_value(value_field, property_value)
         except ValueError:
           raise ValueError(
               "Component {} got unsupported parameter {} with type {}.".format(
@@ -91,6 +105,9 @@ class Compiler(object):
       deployment_config: Intermediate deployment config to set. Will include
         related specs for executors, drivers and platform specific configs.
       enable_cache: whether cache is enabled
+
+    Raises:
+      TypeError: When supplied tfx_node has values of invalid type.
 
     Returns:
       A PipelineNode proto that encodes information of the node.
@@ -178,6 +195,25 @@ class Compiler(object):
         output_spec = node.outputs.outputs[key]
         artifact_type = value.type._get_artifact_type()  # pylint: disable=protected-access
         output_spec.artifact_spec.type.CopyFrom(artifact_type)
+        for prop_key, prop_value in value.additional_properties.items():
+          prop_value_type = data_types_utils.get_metadata_value_type(prop_value)
+          if (prop_value_type !=
+              output_spec.artifact_spec.type.properties[prop_key]):
+            raise TypeError(
+                "Unexpected value type of property '{}' in output artifact '{}': "
+                "Expected {} but given {} (value:{!r})".format(
+                    prop_key, key,
+                    metadata_store_pb2.PropertyType.Name(
+                        output_spec.artifact_spec.type.properties[prop_key]),
+                    metadata_store_pb2.PropertyType.Name(prop_value_type),
+                    prop_value))
+          data_types_utils.set_metadata_value(
+              output_spec.artifact_spec.additional_properties[prop_key]
+              .field_value, prop_value)
+        for prop_key, prop_value in value.additional_custom_properties.items():
+          data_types_utils.set_metadata_value(
+              output_spec.artifact_spec.additional_custom_properties[prop_key]
+              .field_value, prop_value)
 
     # TODO(b/170694459): Refactor special nodes as plugins.
     # Step 4.1: Special treament for Importer node
@@ -210,8 +246,8 @@ class Compiler(object):
               runtime_param.ptype, runtime_param.default)
         else:
           try:
-            compiler_utils.set_field_value_pb(parameter_value.field_value,
-                                              value)
+            data_types_utils.set_metadata_value(parameter_value.field_value,
+                                                value)
           except ValueError:
             raise ValueError(
                 "Component {} got unsupported parameter {} with type {}."

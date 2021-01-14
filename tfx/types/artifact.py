@@ -463,6 +463,10 @@ class Artifact(json_utils.Jsonable):
     """Set a custom property of int type."""
     self._artifact.custom_properties[key].int_value = builtins.int(value)
 
+  def set_float_custom_property(self, key: Text, value: float):
+    """Set a custom property of float type."""
+    self._artifact.custom_properties[key].double_value = value
+
   def has_custom_property(self, key: Text) -> bool:
     return key in self._artifact.custom_properties
 
@@ -477,6 +481,12 @@ class Artifact(json_utils.Jsonable):
     if key not in self._artifact.custom_properties:
       return 0
     return self._artifact.custom_properties[key].int_value
+
+  def get_float_custom_property(self, key: Text) -> float:
+    """Get a custom property of float type."""
+    if key not in self._artifact.custom_properties:
+      return 0.0
+    return self._artifact.custom_properties[key].double_value
 
   def copy_from(self, other: 'Artifact'):
     """Set uri, properties and custom properties from a given Artifact."""
