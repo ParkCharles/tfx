@@ -14,7 +14,6 @@
 # limitations under the License.
 """Tests for tfx.dsl.placeholder.placeholder."""
 
-import copy
 import os
 import tensorflow as tf
 from tfx.dsl.placeholder import placeholder as ph
@@ -26,20 +25,13 @@ from google.protobuf import text_format
 
 class PlaceholderTest(tf.test.TestCase):
 
-  def _assert_placeholder_pb_equal_and_deepcopyable(self, placeholder,
-                                                    expected_pb_str):
-    """This function will delete the original copy of placeholder."""
-    placeholder_copy = copy.deepcopy(placeholder)
+  def _assert_placeholder_pb_equal(self, placeholder, expected_pb_str):
     expected_pb = text_format.Parse(expected_pb_str,
                                     placeholder_pb2.PlaceholderExpression())
-    # The original placeholder is deleted to verify deepcopy works. If caller
-    # needs to use an instance of placeholder after calling to this function,
-    # we can consider returning placeholder_copy.
-    del placeholder
-    self.assertProtoEquals(placeholder_copy.encode(), expected_pb)
+    self.assertProtoEquals(placeholder.encode(), expected_pb)
 
   def testArtifactUriSimple(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.input('model').uri, """
         operator {
           artifact_uri_op {
@@ -54,7 +46,7 @@ class PlaceholderTest(tf.test.TestCase):
     """)
 
   def testArtifactUriWithIndex(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.input('model')[0].uri, """
         operator {
           artifact_uri_op {
@@ -76,7 +68,7 @@ class PlaceholderTest(tf.test.TestCase):
     """)
 
   def testArtifactSplitUriWithIndex(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.input('model')[0].split_uri('train'), """
         operator {
           artifact_uri_op {
@@ -99,7 +91,7 @@ class PlaceholderTest(tf.test.TestCase):
     """)
 
   def testPrimitiveArtifactValue(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.input('primitive').value, """
         operator {
           artifact_value_op {
@@ -114,7 +106,7 @@ class PlaceholderTest(tf.test.TestCase):
     """)
 
   def testConcatUriWithString(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.output('model').uri + '/model', """
         operator {
           concat_op {
@@ -140,7 +132,7 @@ class PlaceholderTest(tf.test.TestCase):
     """)
 
   def testExecPropertySimple(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.exec_property('num_train_steps'), """
         placeholder {
           type: EXEC_PROPERTY
@@ -149,7 +141,7 @@ class PlaceholderTest(tf.test.TestCase):
     """)
 
   def testExecPropertyProtoField(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.exec_property('proto')[0].a.b['c'], """
         operator {
           proto_op {
@@ -179,7 +171,7 @@ class PlaceholderTest(tf.test.TestCase):
     self.assertProtoEquals(placeholder.encode(component_spec), expected_pb)
 
   def testComplicatedConcat(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         'google/' + ph.output('model').uri + '/model/' + '0/' +
         ph.exec_property('version'), """
         operator {
@@ -222,7 +214,7 @@ class PlaceholderTest(tf.test.TestCase):
     """)
 
   def testRuntimeInfoSimple(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.runtime_info('platform_config'), """
         placeholder {
           type: RUNTIME_INFO
@@ -235,7 +227,7 @@ class PlaceholderTest(tf.test.TestCase):
       ph.runtime_info('invalid_key')
 
   def testProtoSerializationOperator(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.exec_property('proto').serialize(ph.ProtoSerializationFormat.JSON),
         """
         operator {
@@ -252,7 +244,7 @@ class PlaceholderTest(tf.test.TestCase):
         """)
 
   def testProtoSerializationOperatorWithFieldAccess(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.exec_property('proto').a.b.serialize(
             ph.ProtoSerializationFormat.JSON), """
         operator {
@@ -289,7 +281,7 @@ class PlaceholderTest(tf.test.TestCase):
     self.assertProtoEquals(placeholder.encode(component_spec), expected_pb)
 
   def testExecInvocation(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.execution_invocation(), """
         placeholder {
           type: EXEC_INVOCATION
@@ -297,7 +289,7 @@ class PlaceholderTest(tf.test.TestCase):
     """)
 
   def testBase64EncodeOperator(self):
-    self._assert_placeholder_pb_equal_and_deepcopyable(
+    self._assert_placeholder_pb_equal(
         ph.exec_property('str_value').b64encode(), """
         operator {
           base64_encode_op {
@@ -310,6 +302,7 @@ class PlaceholderTest(tf.test.TestCase):
           }
         }
     """)
+
 
 if __name__ == '__main__':
   tf.test.main()
